@@ -36,6 +36,10 @@ assert app.window.get_visible()
 assert app.content.get_margin_start()==32
 assert app.content.get_margin_end()==32
 assert app.hero.get_margin_bottom()==24
+assert app.hero.get_orientation()==Gtk.Orientation.HORIZONTAL
+assert app.hero_icon.get_pixel_size()==96
+assert app.header.has_css_class('accented-header')
+assert not app.header.has_css_class('flat')
 assert app.entry.get_text()=='#3584E4'
 assert app.apply_button.get_sensitive()
 assert not app.restore_action.get_enabled()

@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -52,6 +53,16 @@ class InstallTests(unittest.TestCase):
         p=self.outside['launcher'];p.parent.mkdir(parents=True);p.symlink_to(target)
         with self.assertRaisesRegex(RuntimeError,'symbolic link'):self.go()
         self.assertEqual(target.read_text(),'safe')
+    def test_system_owned_ancestor_symlink_allowed(self):
+        real_root=Path(self.tmp.name)/'var-home';real_root.mkdir()
+        system_home=Path(self.tmp.name)/'home';system_home.symlink_to(real_root,target_is_directory=True)
+        home=system_home/'loew';data=home/'.local/share'
+        # The symlink is owned by this test user, so make Accented see a
+        # different effective uid to model Bazzite's root-owned /home link.
+        with patch.object(setup.os,'geteuid',return_value=os.geteuid()+1):
+            launcher=setup.install(SOURCE,home,data)
+        self.assertTrue(launcher.is_file())
+        self.assertTrue((data/'accented/launch.py').is_file())
     def test_missing_source_refused(self):
         with self.assertRaisesRegex(RuntimeError,'Incomplete package'):
             setup.install(self.home/'missing',self.home,self.data)

@@ -27,8 +27,16 @@ def digest(raw):
 
 
 def safe_path(path):
+    path = Path(path).absolute()
+    uid = os.geteuid()
     for part in (path, *path.parents):
-        if part.is_symlink():
+        if not part.is_symlink():
+            continue
+        # A symlink at the path we are about to read/write is never safe.
+        # Ancestor symlinks owned by another user are treated as system layout
+        # (for example Bazzite's root-owned /home -> /var/home mapping).
+        # User-owned ancestor symlinks remain blocked.
+        if part == path or os.lstat(part).st_uid == uid:
             raise RuntimeError(f"Refusing a symbolic link: {part}")
 
 

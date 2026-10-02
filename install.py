@@ -107,7 +107,11 @@ def verify_owned(dest, outside, previous):
 
 
 def refresh(outside):
-    for args in (['update-desktop-database', str(outside['desktop'].parent)],):
+    commands = (
+        ['update-desktop-database', str(outside['desktop'].parent)],
+        ['gtk-update-icon-cache', '-f', '-t', str(outside['icon'].parents[2])],
+    )
+    for args in commands:
         if shutil.which(args[0]):
             subprocess.run(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15, check=False)
 
@@ -138,9 +142,9 @@ def install(source, home=None, data=None):
     execpath = str(outside['launcher']).replace('\\','\\\\').replace('"','\\"').replace('`','\\`').replace('$','\\$').replace('%','%%')
     desktop = (f'[Desktop Entry]\nType=Application\nName=Accented\n'
         'Comment=Pick a pixel. Make it your accent.\n'
-        f'Exec="{execpath}"\nIcon={APP_ID}\nTerminal=false\n'
+        f'Exec="{execpath}"\nIcon={outside["icon"]}\nTerminal=false\n'
         'Categories=Settings;DesktopSettings;GTK;\nKeywords=color;accent;picker;eyedropper;\n'
-        'StartupNotify=true\n').encode()
+        f'StartupWMClass={APP_ID}\nStartupNotify=true\n').encode()
     external = {'launcher':launcher,'desktop':desktop,'icon':payload['assets/com.loew.accented.png']}
     manifest = {'schema':1,'app_id':APP_ID,'version':'0.1.1',
         'files':{name:digest(raw) for name,raw in payload.items()},

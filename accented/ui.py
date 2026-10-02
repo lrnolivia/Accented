@@ -1,18 +1,23 @@
-"""Native Adwaita UI with GameBridge's centered, single-panel composition."""
+"""Compact native Adwaita UI with GameBridge's centered composition."""
 from __future__ import annotations
-import os
+
 from pathlib import Path
 import threading
+
 import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk
-from .core import AccentStore, PRESETS, normalize_hex, foreground, nearest_preset, rgb
+
+from . import __version__
+from .core import AccentStore, PRESETS, normalize_hex, foreground, rgb
 from .desktop import GnomeSettings, PixelPicker
 
 APP_ID = "com.loew.accented"
 ROOT = Path(__file__).resolve().parent.parent
+RELEASES_URL = "https://github.com/lrnolivia/Accented/releases/latest"
+
 CSS = """
 .accented-content .main-panel { padding: 24px; }
 .accented-content .color-swatch { border-radius: 12px; }
@@ -52,8 +57,11 @@ class Accented(Adw.Application):
         super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.DEFAULT_FLAGS)
         self.window = None
         self.settings = GnomeSettings()
-        self.store = AccentStore(Path(GLib.get_user_config_dir()),
-                                 Path(GLib.get_user_state_dir()), self.settings)
+        self.store = AccentStore(
+            Path(GLib.get_user_config_dir()),
+            Path(GLib.get_user_state_dir()),
+            self.settings,
+        )
         self.color = PRESETS["blue"]
         self.valid = True
         self.busy = False
@@ -65,53 +73,98 @@ class Accented(Adw.Application):
 
     def do_startup(self):
         Adw.Application.do_startup(self)
-        for name, fn, shortcuts in (
+
+        actions = (
             ("quit", lambda *_: self.window.close(), ["<Primary>q"]),
             ("pick", self.pick_screen, ["<Primary>p"]),
             ("choose", self.choose_color, ["<Primary>o"]),
             ("apply", self.apply, ["<Primary>Return"]),
-        ):
+            ("restore", self.restore, []),
+            ("check-updates", self.check_updates, []),
+            ("what-changes", self.show_what_changes, []),
+            ("about", self.show_about, []),
+        )
+        for name, fn, shortcuts in actions:
             action = Gio.SimpleAction.new(name, None)
             action.connect("activate", fn)
             self.add_action(action)
-            self.set_accels_for_action("app." + name, shortcuts)
+            if shortcuts:
+                self.set_accels_for_action("app." + name, shortcuts)
+
+        self.restore_action = self.lookup_action("restore")
+        self.check_update_action = self.lookup_action("check-updates")
+
+        self.match_action = Gio.SimpleAction.new_stateful(
+            "match-desktop", None, GLib.Variant.new_boolean(False)
+        )
+        self.match_action.connect("change-state", self.match_desktop_changed)
+        self.add_action(self.match_action)
 
     def do_activate(self):
         if self.window:
             self.window.present()
             return
+
         try:
             self.saved_state = self.store.state()
             self.color = normalize_hex(self.saved_state.get("color", self.color))
         except Exception as exc:
             self.issue = str(exc)
-        self.window = Adw.ApplicationWindow(application=self, title="Accented",
-                                             default_width=620, default_height=740)
+
+        self.match_action.set_state(
+            GLib.Variant.new_boolean(self.saved_state.get("shell_applied") is not None)
+        )
+        self.match_action.set_enabled(self.settings.available)
+
+        self.window = Adw.ApplicationWindow(
+            application=self,
+            title="Accented",
+            default_width=560,
+            default_height=480,
+        )
         self.window.set_icon_name(APP_ID)
         self.window.connect("close-request", self.close_requested)
+
+        self.toast_overlay = Adw.ToastOverlay()
+        self.window.set_content(self.toast_overlay)
+
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        self.window.set_content(root)
+        self.toast_overlay.set_child(root)
+
         header = Adw.HeaderBar()
         header.add_css_class("flat")
-        # Leave native window controls and title placement to Adwaita.
+        self.menu_button = Gtk.MenuButton(
+            icon_name="open-menu-symbolic",
+            tooltip_text="Accented options",
+            menu_model=self.build_menu(),
+        )
+        self.menu_button.update_property(
+            [Gtk.AccessibleProperty.LABEL], ["Accented options"]
+        )
+        header.pack_end(self.menu_button)
         root.append(header)
+
         self.scroll = Gtk.ScrolledWindow(vexpand=True)
         self.scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         root.append(self.scroll)
+
         clamp = Adw.Clamp(maximum_size=620, tightening_threshold=500)
         self.scroll.set_child(clamp)
+
         self.content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.content.add_css_class("accented-content")
         for edge, value in (("top", 12), ("bottom", 32), ("start", 32), ("end", 32)):
             getattr(self.content, "set_margin_" + edge)(value)
         clamp.set_child(self.content)
+
         self.hero = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.hero.set_margin_bottom(24)
         image_path = ROOT / "assets" / (APP_ID + ".png")
-        if image_path.is_file():
-            image = Gtk.Image.new_from_file(str(image_path))
-        else:
-            image = Gtk.Image.new_from_icon_name("applications-graphics-symbolic")
+        image = (
+            Gtk.Image.new_from_file(str(image_path))
+            if image_path.is_file()
+            else Gtk.Image.new_from_icon_name("applications-graphics-symbolic")
+        )
         image.set_pixel_size(64)
         image.set_halign(Gtk.Align.CENTER)
         self.hero.append(image)
@@ -123,22 +176,30 @@ class Accented(Adw.Application):
         self.panel.add_css_class("card")
         self.panel.add_css_class("main-panel")
         self.content.append(self.panel)
+
         selected = Gtk.Box(spacing=16)
         self.swatch = Gtk.Box(width_request=56, height_request=56, valign=Gtk.Align.CENTER)
         self.swatch.add_css_class("color-swatch")
         selected.append(self.swatch)
+
         fields = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6, hexpand=True)
         hex_label = Gtk.Label(label="_Hex color", use_underline=True, xalign=0)
         fields.append(hex_label)
         entry_row = Gtk.Box(spacing=8)
-        self.entry = Gtk.Entry(text=self.color, placeholder_text="#DB805A", max_length=7,
-                               width_chars=9, hexpand=True)
+        self.entry = Gtk.Entry(
+            text=self.color,
+            placeholder_text="#DB805A",
+            max_length=7,
+            width_chars=9,
+            hexpand=True,
+        )
         self.entry.set_input_purpose(Gtk.InputPurpose.FREE_FORM)
         self.entry.set_tooltip_text("Enter a six-digit or three-digit hex color")
         hex_label.set_mnemonic_widget(self.entry)
         self.entry.connect("changed", self.entry_changed)
         self.entry.connect("activate", self.normalize_entry)
         entry_row.append(self.entry)
+
         self.copy = Gtk.Button.new_from_icon_name("edit-copy-symbolic")
         self.copy.set_tooltip_text("Copy hex color")
         self.copy.update_property([Gtk.AccessibleProperty.LABEL], ["Copy hex color"])
@@ -147,64 +208,49 @@ class Accented(Adw.Application):
         fields.append(entry_row)
         selected.append(fields)
         self.panel.append(selected)
+
         self.validation = label("", "error")
         self.validation.set_visible(False)
         self.panel.append(self.validation)
 
-        self.picker_actions = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE,
-            min_children_per_line=1, max_children_per_line=2, homogeneous=True,
-            column_spacing=12, row_spacing=12)
+        self.picker_actions = Gtk.FlowBox(
+            selection_mode=Gtk.SelectionMode.NONE,
+            min_children_per_line=1,
+            max_children_per_line=2,
+            homogeneous=True,
+            column_spacing=12,
+            row_spacing=12,
+        )
         self.picker_actions.add_css_class("picker-actions")
-        self.choose_button = button("Choose Color", self.choose_color, icon="applications-graphics-symbolic")
-        self.pick_button = button("Pick from Screen", self.pick_screen, icon="color-select-symbolic")
+        self.choose_button = button(
+            "Choose Color", self.choose_color, icon="applications-graphics-symbolic"
+        )
+        self.pick_button = button(
+            "Pick from Screen", self.pick_screen, icon="color-select-symbolic"
+        )
         self.picker_actions.append(self.choose_button)
         self.picker_actions.append(self.pick_button)
         self.panel.append(self.picker_actions)
 
-        self.preview = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-        self.preview.add_css_class("accented-preview")
-        self.preview.append(label("Preview", "heading"))
-        sample_row = Gtk.Box(spacing=12)
-        self.sample_button = button("Sample", lambda *_: self.message("This is a preview. Your desktop has not changed."))
-        self.sample_button.add_css_class("suggested-action")
-        sample_row.append(self.sample_button)
-        self.sample_check = Gtk.CheckButton(label="Selected", active=True)
-        sample_row.append(self.sample_check)
-        self.preview.append(sample_row)
-        self.panel.append(self.preview)
-
-        self.recent_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        self.recent_box.append(label("Recent colors", "heading"))
-        self.recents = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE,
-            min_children_per_line=1, max_children_per_line=8,
-            column_spacing=4, row_spacing=4)
+        self.recent_expander = Gtk.Expander(label="Recent colors")
+        self.recent_expander.set_expanded(False)
+        self.recents = Gtk.FlowBox(
+            selection_mode=Gtk.SelectionMode.NONE,
+            min_children_per_line=1,
+            max_children_per_line=8,
+            column_spacing=4,
+            row_spacing=4,
+        )
+        self.recents.set_margin_top(10)
         self.recents.add_css_class("recent-colors")
-        self.recent_box.append(self.recents)
-        self.panel.append(self.recent_box)
+        self.recent_expander.set_child(self.recents)
+        self.panel.append(self.recent_expander)
 
-        options = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        options.set_margin_top(20)
-        self.match = Gtk.CheckButton()
-        self.match.set_child(label("Match desktop to nearest GNOME color"))
-        self.match.update_property([Gtk.AccessibleProperty.LABEL],
-                                   ["Match desktop to nearest GNOME color"])
-        self.match.set_active(self.saved_state.get("shell_applied") is not None)
-        self.match.set_sensitive(self.settings.available)
-        self.match.connect("toggled", self.option_changed)
-        options.append(self.match)
-        self.match_hint = label("")
-        self.match_hint.set_margin_start(28)
-        options.append(self.match_hint)
-        self.content.append(options)
-
-        controls = Gtk.Box(spacing=12, homogeneous=True)
-        controls.set_margin_top(20)
-        self.restore_button = button("Restore", self.restore)
         self.apply_button = button("Apply Accent", self.apply)
         self.apply_button.add_css_class("suggested-action")
-        controls.append(self.restore_button)
-        controls.append(self.apply_button)
-        self.content.append(controls)
+        self.apply_button.set_hexpand(True)
+        self.panel.append(self.apply_button)
+
         status_row = Gtk.Box(spacing=8, halign=Gtk.Align.CENTER)
         status_row.set_margin_top(12)
         self.spinner = Gtk.Spinner()
@@ -216,44 +262,67 @@ class Accented(Adw.Application):
         status_row.append(self.status)
         self.content.append(status_row)
 
-        details = Gtk.Expander(label="What changes?")
-        details.set_margin_top(20)
-        info = label(
-            "Your color is applied to GTK 3 and GTK 4 apps that honor user CSS. "
-            "Reopen apps to see changes. Sandboxed Flatpak, Qt, Electron, and custom-drawn apps may not follow it.\n\n"
-            "Desktop matching uses GNOME’s nearest built-in color, not your exact hex value. "
-            "This does not add swatches to GNOME Settings.\n\n"
-            "Only accent colors change, not your theme or wallpaper. Existing CSS is kept. "
-            "Accented backs up each change and refuses to overwrite symbolic links or externally edited accent blocks.\n\n"
-            "For older GTK apps, reapply after switching light/dark mode to refresh accent-text contrast.\n\n"
-            "Keyboard: Ctrl+O chooses a color, Ctrl+P picks a pixel, Ctrl+Enter applies, Ctrl+Q closes."
-        )
-        info.set_margin_top(12)
-        info.set_selectable(True)
-        details.set_child(info)
-        self.content.append(details)
-        self.preview_provider = Gtk.CssProvider()
         self.swatch_provider = Gtk.CssProvider()
         self.add_css(CSS)
-        for provider in (self.preview_provider, self.swatch_provider):
-            Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), provider,
-                                                     Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        Gtk.StyleContext.add_provider_for_display(
+            Gdk.Display.get_default(),
+            self.swatch_provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
+        )
+
         self.style = Adw.StyleManager.get_default()
         self.style.connect("notify::dark", self.theme_changed)
         self.style.connect("notify::high-contrast", self.theme_changed)
+
         self.render_recents()
-        self.update_preview()
+        self.update_swatch()
         self.update_controls()
-        self.message(self.issue or ("An interrupted change needs Restore." if self.store.journal.exists()
-                                    else "Preview only. Apply when you’re ready."), error=bool(self.issue))
+
+        initial = (
+            self.issue
+            or (
+                "An interrupted change needs Restore from the menu."
+                if self.store.journal.exists()
+                else "Choose a color, then Apply."
+            )
+        )
+        self.message(initial, error=bool(self.issue))
         self.window.present()
+
+    def build_menu(self):
+        menu = Gio.Menu()
+
+        color_section = Gio.Menu()
+        color_section.append("Match GNOME Desktop", "app.match-desktop")
+        color_section.append("Restore Original Accent", "app.restore")
+        menu.append_section(None, color_section)
+
+        update_section = Gio.Menu()
+        update_section.append("Check for Updates…", "app.check-updates")
+        menu.append_section(None, update_section)
+
+        help_section = Gio.Menu()
+        help_section.append("What Changes?", "app.what-changes")
+        help_section.append("About Accented", "app.about")
+        menu.append_section(None, help_section)
+        return menu
 
     def add_css(self, css):
         provider = Gtk.CssProvider()
         provider.load_from_data(css.encode())
-        Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), provider,
-                                                 Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        Gtk.StyleContext.add_provider_for_display(
+            Gdk.Display.get_default(),
+            provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
+        )
         self.providers.append(provider)
+
+    def toast(self, text, timeout=3):
+        if not self.window:
+            return
+        toast = Adw.Toast.new(text)
+        toast.set_timeout(timeout)
+        self.toast_overlay.add_toast(toast)
 
     def render_recents(self):
         child = self.recents.get_first_child()
@@ -261,8 +330,10 @@ class Accented(Adw.Application):
             next_child = child.get_next_sibling()
             self.recents.remove(child)
             child = next_child
+
         recent = self.saved_state.get("recent", [])[:8]
-        self.recent_box.set_visible(bool(recent))
+        self.recent_expander.set_visible(bool(recent))
+
         for i, color in enumerate(recent):
             color = normalize_hex(color)
             item = button(color, lambda _b, c=color: self.set_color(c))
@@ -272,16 +343,23 @@ class Accented(Adw.Application):
             patch.add_css_class("small-swatch")
             patch.add_css_class("recent-" + str(i))
             item.set_child(patch)
-            item.update_property([Gtk.AccessibleProperty.LABEL], ["Use recent color " + color])
-            # One small scoped provider per palette slot, replaced on refresh below.
+            item.update_property(
+                [Gtk.AccessibleProperty.LABEL], ["Use recent color " + color]
+            )
             self.recents.append(item)
-        css = "\n".join(f".recent-{i} {{ background-color: {normalize_hex(c)}; "
-                         "box-shadow: inset 0 0 0 1px alpha(currentColor, 0.2); }"
-                         for i, c in enumerate(recent))
+
+        css = "\n".join(
+            f".recent-{i} {{ background-color: {normalize_hex(c)}; "
+            "box-shadow: inset 0 0 0 1px alpha(currentColor, 0.2); }"
+            for i, c in enumerate(recent)
+        )
         if not hasattr(self, "recent_provider"):
             self.recent_provider = Gtk.CssProvider()
-            Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), self.recent_provider,
-                                                     Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+            Gtk.StyleContext.add_provider_for_display(
+                Gdk.Display.get_default(),
+                self.recent_provider,
+                Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
+            )
         self.recent_provider.load_from_data(css.encode())
 
     def entry_changed(self, *_):
@@ -297,8 +375,8 @@ class Accented(Adw.Application):
             self.color = value
             self.entry.remove_css_class("error")
             self.validation.set_visible(False)
-            if hasattr(self, "preview_provider"):
-                self.update_preview()
+            if hasattr(self, "swatch_provider"):
+                self.update_swatch()
         if hasattr(self, "apply_button"):
             self.update_controls()
 
@@ -308,56 +386,52 @@ class Accented(Adw.Application):
 
     def set_color(self, color):
         self.entry.set_text(normalize_hex(color))
-        self.message("Preview only. Apply when you’re ready.")
+        self.message("Ready to apply " + self.color + ".")
 
-    def update_preview(self):
-        fg = foreground(self.color)
-        self.swatch_provider.load_from_data((
-            f".color-swatch {{ background-color: {self.color}; "
-            "box-shadow: inset 0 0 0 1px alpha(currentColor, 0.2); }"
-        ).encode())
-        if self.style.get_high_contrast():
-            css = ""
-        elif Gtk.get_minor_version() >= 16 and Adw.get_minor_version() >= 6:
-            css = (f".accented-preview {{ --accent-bg-color: {self.color}; --accent-fg-color: {fg}; "
-                   "--accent-color: oklab(from var(--accent-bg-color) var(--standalone-color-oklab)); }")
-        else:
-            css = (f".accented-preview .suggested-action, .accented-preview check:checked {{ "
-                   f"background-color: {self.color}; color: {fg}; }}")
-        self.preview_provider.load_from_data(css.encode())
-        self.update_match_hint()
+    def update_swatch(self):
+        self.swatch_provider.load_from_data(
+            (
+                f".color-swatch {{ background-color: {self.color}; "
+                "box-shadow: inset 0 0 0 1px alpha(currentColor, 0.2); }"
+            ).encode()
+        )
 
-    def update_match_hint(self):
-        if not self.settings.available:
-            text = "Desktop matching is unavailable in this session. App accents still work."
-        elif self.match.get_active():
-            text = f"Nearest desktop color: {nearest_preset(self.color).title()}. This is an approximation."
-        elif self.saved_state.get("shell_applied") is not None:
-            text = "Off. Apply will restore your previous desktop match if it is still owned."
-        else:
-            text = "Off. Your GNOME desktop accent stays as it is."
-        self.match_hint.set_text(text)
-
-    def option_changed(self, *_):
-        if hasattr(self, "match_hint"):
-            self.update_match_hint()
-        if hasattr(self, "apply_button"):
-            self.update_controls()
+    def match_desktop_changed(self, action, value):
+        enabled = value.get_boolean()
+        action.set_state(value)
+        if self.window:
+            if not self.settings.available:
+                self.toast("GNOME desktop matching is unavailable in this session.")
+                action.set_state(GLib.Variant.new_boolean(False))
+            elif enabled:
+                self.toast("Desktop match on. Apply will use GNOME’s nearest built-in color.")
+            else:
+                self.toast("Desktop match off. Apply will restore Accented’s owned match.")
+        self.update_controls()
 
     def theme_changed(self, *_):
-        self.update_preview()
-        self.message("Appearance changed. Reapply to refresh older GTK apps’ accent-text contrast.")
+        self.message(
+            "Appearance changed. Reapply to refresh older GTK apps’ accent-text contrast."
+        )
 
     def update_controls(self):
         for widget in (self.entry, self.choose_button, self.pick_button):
             widget.set_sensitive(not self.busy)
-        self.match.set_sensitive(not self.busy and self.settings.available)
         self.copy.set_sensitive(not self.busy and self.valid)
         self.recents.set_sensitive(not self.busy)
-        self.apply_button.set_sensitive(not self.busy and self.valid and not self.issue
-                                        and not self.store.journal.exists())
-        self.restore_button.set_sensitive(not self.busy and
-            (bool(self.saved_state.get("files")) or self.store.journal.exists()))
+        self.apply_button.set_sensitive(
+            not self.busy
+           
+            and self.valid
+            and not self.issue
+            and not self.store.journal.exists()
+        )
+        restorable = bool(self.saved_state.get("files")) or self.store.journal.exists()
+        self.restore_action.set_enabled(not self.busy and restorable)
+        self.match_action.set_enabled(
+            not self.busy and self.settings.available
+        )
+        self.check_update_action.set_enabled(not self.busy)
 
     def message(self, text, error=False):
         self.status.set_text(text)
@@ -371,14 +445,16 @@ class Accented(Adw.Application):
     def copy_color(self, *_):
         if self.valid:
             Gdk.Display.get_default().get_clipboard().set(self.color)
-            self.message("Copied " + self.color)
+            self.toast("Copied " + self.color)
 
     def choose_color(self, *_):
         if self.busy or self.dialog:
             return
         color = Gdk.RGBA()
         color.parse(self.color)
-        self.dialog = Gtk.ColorDialog(title="Choose an accent", with_alpha=False, modal=True)
+        self.dialog = Gtk.ColorDialog(
+            title="Choose an accent", with_alpha=False, modal=True
+        )
         self.dialog.choose_rgba(self.window, color, None, self.color_chosen)
 
     def color_chosen(self, dialog, result):
@@ -400,7 +476,6 @@ class Accented(Adw.Application):
         self.hold()
         self.picker = PixelPicker(self.pixel_chosen)
         self.window.set_visible(False)
-        # Let the compositor reveal the wallpaper before entering pixel-pick mode.
         GLib.timeout_add(200, self.picker.start)
 
     def pixel_chosen(self, color, message):
@@ -422,6 +497,7 @@ class Accented(Adw.Application):
         self.spinner.start()
         self.message(description)
         self.update_controls()
+
         def worker():
             try:
                 message = operation()
@@ -430,6 +506,7 @@ class Accented(Adw.Application):
                 GLib.idle_add(self.change_done, None, str(exc), None)
             else:
                 GLib.idle_add(self.change_done, message, None, state)
+
         threading.Thread(target=worker, daemon=False).start()
 
     def change_done(self, text, error, state):
@@ -439,29 +516,83 @@ class Accented(Adw.Application):
         if state is not None:
             self.saved_state = state
             self.issue = None
-            self.match.set_active(state.get("shell_applied") is not None)
+            self.match_action.set_state(
+                GLib.Variant.new_boolean(state.get("shell_applied") is not None)
+            )
             self.render_recents()
         self.message(error or text, error=bool(error))
         self.update_controls()
         return False
 
     def apply(self, *_):
-        if self.busy or not self.valid or self.issue or self.store.journal.exists():
+        if (
+            self.busy
+            or not self.valid
+            or self.issue
+            or self.store.journal.exists()
+        ):
             return
         self.normalize_entry()
         color = self.color
-        match = self.match.get_active()
+        match = self.match_action.get_state().get_boolean()
         dark = self.style.get_dark()
+
         def operation():
-            self.store.apply(color, modern=Gtk.get_minor_version() >= 16, dark=dark, match_shell=match)
+            self.store.apply(
+                color,
+                modern=Gtk.get_minor_version() >= 16,
+                dark=dark,
+                match_shell=match,
+            )
             return f"Applied {color}. Reopen apps to see the change."
+
         self.run_change(operation, "Backing up and applying…")
 
     def restore(self, *_):
-        self.run_change(lambda: self.store.restore()[1], "Restoring your previous accents…")
+        self.run_change(
+            lambda: self.store.restore()[1],
+            "Restoring your previous accents…",
+        )
+
+    def check_updates(self, *_):
+        try:
+            if not Gio.AppInfo.launch_default_for_uri(RELEASES_URL, None):
+                raise RuntimeError("The desktop could not open GitHub Releases.")
+        except Exception as exc:
+            self.toast("Could not open updates: " + str(exc), 6)
+        else:
+            self.toast("Opened Accented Releases.")
+
+    def show_what_changes(self, *_):
+        dialog = Adw.AlertDialog(
+            heading="What Accented changes",
+            body=(
+                "Accented writes only accent-specific values to your user GTK 3 and GTK 4 CSS. "
+                "Existing CSS is preserved and each change is backed up.\n\n"
+                "“Match GNOME Desktop” uses GNOME’s nearest built-in accent, so it is an "
+                "approximation rather than your exact hex color.\n\n"
+                "Flatpak, Qt, Electron, and custom-drawn apps may not follow GTK user CSS. "
+                "Reopen affected apps after Apply or Restore."
+            ),
+        )
+        dialog.add_response("close", "Close")
+        dialog.set_default_response("close")
+        dialog.set_close_response("close")
+        dialog.present(self.window)
+
+    def show_about(self, *_):
+        dialog = Adw.AboutDialog(
+            application_name="Accented",
+            application_icon=APP_ID,
+            version=__version__,
+            developer_name="loew",
+            comments="Pick a pixel. Make it your accent.",
+            website="https://github.com/lrnolivia/Accented",
+        )
+        dialog.present(self.window)
 
     def close_requested(self, *_):
         if self.busy:
-            self.message("A change is in progress. The window will stay open until it finishes.")
+            self.message("A change is in progress. Accented will stay open until it finishes.")
             return True
         return False

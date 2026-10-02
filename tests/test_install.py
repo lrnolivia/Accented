@@ -24,7 +24,10 @@ class InstallTests(unittest.TestCase):
         launcher=self.go()
         self.assertTrue(launcher.stat().st_mode&0o100)
         self.assertIn('home with spaces',launcher.read_text())
-        self.assertIn('Name=Accented',self.outside['desktop'].read_text())
+        desktop=self.outside['desktop'].read_text()
+        self.assertIn('Name=Accented',desktop)
+        self.assertIn(f"Icon={self.outside['icon']}",desktop)
+        self.assertIn('StartupWMClass=com.loew.accented',desktop)
         self.assertEqual(set(setup.marker(self.dest)['files']),set(setup.PACKAGE_FILES))
         self.assertFalse((self.home/'.config/gtk-4.0/gtk.css').exists())
     def test_repeat_install(self):

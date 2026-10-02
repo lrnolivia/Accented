@@ -19,7 +19,13 @@ ROOT = Path(__file__).resolve().parent.parent
 RELEASES_URL = "https://github.com/lrnolivia/Accented/releases/latest"
 
 CSS = """
+.accented-header {
+    background-color: @headerbar_bg_color;
+    color: @headerbar_fg_color;
+    box-shadow: inset 0 -1px alpha(currentColor, 0.08);
+}
 .accented-content .main-panel { padding: 24px; }
+.accented-hero-description { opacity: 0.72; }
 .accented-content .color-swatch { border-radius: 12px; }
 .accented-content .swatch-button { padding: 8px; }
 .accented-content .small-swatch { border-radius: 6px; }
@@ -137,8 +143,8 @@ class Accented(Adw.Application):
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.toast_overlay.set_child(root)
 
-        header = Adw.HeaderBar()
-        header.add_css_class("flat")
+        self.header = Adw.HeaderBar()
+        self.header.add_css_class("accented-header")
         self.menu_button = Gtk.MenuButton(
             icon_name="open-menu-symbolic",
             tooltip_text="Accented options",
@@ -147,8 +153,8 @@ class Accented(Adw.Application):
         self.menu_button.update_property(
             [Gtk.AccessibleProperty.LABEL], ["Accented options"]
         )
-        header.pack_end(self.menu_button)
-        root.append(header)
+        self.header.pack_end(self.menu_button)
+        root.append(self.header)
 
         clamp = Adw.Clamp(
             maximum_size=620,
@@ -163,19 +169,39 @@ class Accented(Adw.Application):
             getattr(self.content, "set_margin_" + edge)(value)
         clamp.set_child(self.content)
 
-        self.hero = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        self.hero = Gtk.Box(
+            orientation=Gtk.Orientation.HORIZONTAL,
+            spacing=20,
+            valign=Gtk.Align.CENTER,
+        )
         self.hero.set_margin_bottom(24)
         image_path = ROOT / "assets" / (APP_ID + ".png")
-        image = (
+        self.hero_icon = (
             Gtk.Image.new_from_file(str(image_path))
             if image_path.is_file()
             else Gtk.Image.new_from_icon_name("applications-graphics-symbolic")
         )
-        image.set_pixel_size(64)
-        image.set_halign(Gtk.Align.CENTER)
-        self.hero.append(image)
-        self.hero.append(label("Accented", "title-1", center=True))
-        self.hero.append(label("Pick a pixel. Make it your accent.", center=True))
+        self.hero_icon.set_pixel_size(96)
+        self.hero_icon.set_halign(Gtk.Align.START)
+        self.hero_icon.set_valign(Gtk.Align.CENTER)
+        self.hero.append(self.hero_icon)
+
+        self.hero_text = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL,
+            spacing=4,
+            hexpand=True,
+            valign=Gtk.Align.CENTER,
+        )
+        hero_title = label("Accented", "title-1")
+        hero_title.set_xalign(0)
+        self.hero_text.append(hero_title)
+        hero_description = label(
+            "Pick a pixel. Make it your accent.",
+            "accented-hero-description",
+        )
+        hero_description.set_xalign(0)
+        self.hero_text.append(hero_description)
+        self.hero.append(self.hero_text)
         self.content.append(self.hero)
 
         self.panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)

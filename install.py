@@ -13,6 +13,8 @@ import subprocess
 import sys
 import tempfile
 
+from accented import __version__
+
 APP_ID = "com.loew.accented"
 PACKAGE_FILES = (
     "launch.py", "install.py", "accented/__init__.py", "accented/core.py",
@@ -146,7 +148,7 @@ def install(source, home=None, data=None):
         'Categories=Settings;DesktopSettings;GTK;\nKeywords=color;accent;picker;eyedropper;\n'
         f'StartupWMClass={APP_ID}\nStartupNotify=true\n').encode()
     external = {'launcher':launcher,'desktop':desktop,'icon':payload['assets/com.loew.accented.png']}
-    manifest = {'schema':1,'app_id':APP_ID,'version':'0.1.1',
+    manifest = {'schema':1,'app_id':APP_ID,'version':__version__,
         'files':{name:digest(raw) for name,raw in payload.items()},
         'external':{name:digest(raw) for name,raw in external.items()}}
     with install_lock(dest.parent):

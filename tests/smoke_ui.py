@@ -33,7 +33,7 @@ app=Accented()
 assert app.register(None)
 app.activate();tick(.6)
 assert app.window.get_visible()
-assert app.window.get_default_size()[1]==480
+assert app.window.get_default_size()[1]==440
 assert app.content.get_margin_start()==32
 assert app.content.get_margin_end()==32
 assert app.hero.get_margin_bottom()==24
@@ -41,6 +41,9 @@ assert app.entry.get_text()=='#3584E4'
 assert app.apply_button.get_sensitive()
 assert not app.restore_action.get_enabled()
 assert app.menu_button.get_menu_model() is not None
+assert app.scroll.has_css_class('accented-scroll')
+assert not hasattr(app,'status')
+assert not hasattr(app,'spinner')
 assert not app.store.config.exists()
 assert not app.recent_expander.get_visible()
 

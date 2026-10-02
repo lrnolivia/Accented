@@ -33,6 +33,7 @@ app=Accented()
 assert app.register(None)
 app.activate();tick(.6)
 assert app.window.get_visible()
+assert app.window.get_default_size()[1]==480
 assert app.content.get_margin_start()==32
 assert app.content.get_margin_end()==32
 assert app.hero.get_margin_bottom()==24

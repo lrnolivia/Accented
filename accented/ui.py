@@ -120,7 +120,7 @@ class Accented(Adw.Application):
             application=self,
             title="Accented",
             default_width=560,
-            default_height=570,
+            default_height=480,
         )
         self.window.set_icon_name(APP_ID)
         self.window.connect("close-request", self.close_requested)

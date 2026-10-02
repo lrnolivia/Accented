@@ -142,7 +142,7 @@ def install(source, home=None, data=None):
         'Categories=Settings;DesktopSettings;GTK;\nKeywords=color;accent;picker;eyedropper;\n'
         'StartupNotify=true\n').encode()
     external = {'launcher':launcher,'desktop':desktop,'icon':payload['assets/com.loew.accented.png']}
-    manifest = {'schema':1,'app_id':APP_ID,'version':'0.1.0',
+    manifest = {'schema':1,'app_id':APP_ID,'version':'0.1.1',
         'files':{name:digest(raw) for name,raw in payload.items()},
         'external':{name:digest(raw) for name,raw in external.items()}}
     with install_lock(dest.parent):

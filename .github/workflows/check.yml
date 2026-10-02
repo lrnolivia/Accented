@@ -1,7 +1,7 @@
 name: Accented checks
 on:
   push:
-    branches: [accented/initial-shell]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 permissions:
@@ -45,7 +45,9 @@ jobs:
           '
           cat evidence/native.log
       - name: Build installer
-        run: python3 tools/build_installer.py evidence/Accented-0.1.1.run
+        run: |
+          VERSION=$(python3 -c 'from accented import __version__; print(__version__)')
+          python3 tools/build_installer.py "evidence/Accented-${VERSION}.run"
       - uses: actions/upload-artifact@v7
         if: always()
         with:

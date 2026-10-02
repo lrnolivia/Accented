@@ -282,6 +282,7 @@ class AccentStore:
                 changes[name] = (clean or b"") + block.encode()
                 records[name] = {"block": block, "original_missing": clean is None}
             before, after, baseline = None, None, previous.get("shell_baseline")
+            change_shell = match_shell
             if match_shell:
                 if self.settings is None or not self.settings.available:
                     raise ConflictError("GNOME's native accent preference is unavailable.")
@@ -292,11 +293,16 @@ class AccentStore:
                     baseline = before
                 after = {"user_value": nearest_preset(value)}
             elif previous.get("shell_applied") is not None:
-                raise ConflictError("Restore the previous Shell match before turning that option off.")
+                if self.settings is None or not self.settings.available:
+                    raise ConflictError("GNOME settings are unavailable; restore has been paused.")
+                before = self.settings.snapshot()
+                if before == previous["shell_applied"]:
+                    after, change_shell = baseline, True
+                baseline = None
             state = {"schema": 1, "color": value, "files": records,
-                     "shell_baseline": baseline, "shell_applied": after,
+                     "shell_baseline": baseline, "shell_applied": after if match_shell else None,
                      "recent": list(dict.fromkeys([value] + previous.get("recent", [])))[:10]}
-            return self._transaction(changes, state, before, after, match_shell)
+            return self._transaction(changes, state, before, after, change_shell)
 
     def restore(self) -> tuple[bool, str]:
         with self._lock():

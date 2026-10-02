@@ -25,9 +25,6 @@ CSS = """
 .accented-content .small-swatch { border-radius: 6px; }
 .accented-content .picker-actions > flowboxchild { padding: 0; }
 .accented-content .recent-colors > flowboxchild { padding: 0; }
-.accented-scroll { border: none; box-shadow: none; }
-.accented-scroll undershoot,
-.accented-scroll overshoot { background: transparent; box-shadow: none; }
 """
 
 
@@ -153,13 +150,12 @@ class Accented(Adw.Application):
         header.pack_end(self.menu_button)
         root.append(header)
 
-        self.scroll = Gtk.ScrolledWindow(vexpand=True)
-        self.scroll.add_css_class("accented-scroll")
-        self.scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-        root.append(self.scroll)
-
-        clamp = Adw.Clamp(maximum_size=620, tightening_threshold=500)
-        self.scroll.set_child(clamp)
+        clamp = Adw.Clamp(
+            maximum_size=620,
+            tightening_threshold=500,
+            vexpand=True,
+        )
+        root.append(clamp)
 
         self.content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.content.add_css_class("accented-content")

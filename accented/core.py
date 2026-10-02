@@ -118,8 +118,16 @@ def _decode(raw: str | None) -> bytes | None:
 
 
 def _check_path(path: Path) -> None:
+    path = Path(path).absolute()
+    uid = os.geteuid()
     for candidate in (path, *path.parents):
-        if candidate.is_symlink():
+        if not candidate.is_symlink():
+            continue
+        # Never follow a symlink at the exact configuration path. Ancestor
+        # symlinks owned by another user are allowed as trusted system layout
+        # (notably Bazzite's root-owned /home -> /var/home mapping), while
+        # user-owned ancestor symlinks remain blocked.
+        if candidate == path or os.lstat(candidate).st_uid == uid:
             raise ConflictError(f"Refusing a symlinked configuration path: {candidate}")
     if path.exists() and not path.is_file():
         raise ConflictError(f"Not a regular file: {path}")

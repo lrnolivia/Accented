@@ -12,7 +12,7 @@ sys.path.insert(0,str(ROOT))
 from install import PACKAGE_FILES
 
 HEADER='''#!/bin/bash
-# Accented 0.1.0: user-only installer. Does not apply an accent.
+# Accented 0.1.1: user-only installer. Does not apply an accent.
 set -euo pipefail
 exec /usr/bin/python3 - "$0" "$@" <<'ACCENTED_BOOTSTRAP'
 import base64, hashlib, io, os, pathlib, subprocess, sys, tempfile, zipfile
@@ -51,4 +51,4 @@ def build(destination):
     path=Path(destination);path.write_text(text);path.chmod(0o755)
     print(path,hashlib.sha256(path.read_bytes()).hexdigest())
 
-if __name__=='__main__':build(sys.argv[1] if len(sys.argv)>1 else ROOT.parent/'Accented-0.1.0.run')
+if __name__=='__main__':build(sys.argv[1] if len(sys.argv)>1 else ROOT.parent/'Accented-0.1.1.run')

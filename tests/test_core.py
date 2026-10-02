@@ -137,6 +137,18 @@ class StoreTests(unittest.TestCase):
         with self.assertRaises(core.ConflictError):self.store.apply('#DB805A')
         self.assertEqual(list(target.iterdir()),[])
         self.assertIsNone(self.css(core.TARGETS[0]))
+    def test_system_owned_ancestor_symlink_allowed(self):
+        real_root=self.root/'var-home';real_root.mkdir()
+        system_home=self.root/'home';system_home.symlink_to(real_root,target_is_directory=True)
+        home=system_home/'loew'
+        store=core.AccentStore(home/'.config',home/'.local/state',self.settings)
+        # Model Bazzite's root-owned /home symlink by making its actual owner
+        # differ from the effective uid seen by Accented.
+        with patch.object(core.os,'geteuid',return_value=os.geteuid()+1):
+            store.apply('#DB805A')
+            changed=(home/'.config'/core.TARGETS[0]).read_bytes()
+            self.assertIn(b'#DB805A',changed)
+            self.assertTrue(store.restore()[0])
     def test_directory_target_refused(self):
         (self.config/core.TARGETS[1]).mkdir(parents=True)
         with self.assertRaises(core.ConflictError):self.store.apply('#DB805A')

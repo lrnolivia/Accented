@@ -27,8 +27,16 @@ def digest(raw):
 
 
 def safe_path(path):
+    path = Path(path).absolute()
+    uid = os.geteuid()
     for part in (path, *path.parents):
-        if part.is_symlink():
+        if not part.is_symlink():
+            continue
+        # A symlink at the path we are about to read/write is never safe.
+        # Ancestor symlinks owned by another user are treated as system layout
+        # (for example Bazzite's root-owned /home -> /var/home mapping).
+        # User-owned ancestor symlinks remain blocked.
+        if part == path or os.lstat(part).st_uid == uid:
             raise RuntimeError(f"Refusing a symbolic link: {part}")
 
 
@@ -134,7 +142,7 @@ def install(source, home=None, data=None):
         'Categories=Settings;DesktopSettings;GTK;\nKeywords=color;accent;picker;eyedropper;\n'
         'StartupNotify=true\n').encode()
     external = {'launcher':launcher,'desktop':desktop,'icon':payload['assets/com.loew.accented.png']}
-    manifest = {'schema':1,'app_id':APP_ID,'version':'0.1.0',
+    manifest = {'schema':1,'app_id':APP_ID,'version':'0.1.1',
         'files':{name:digest(raw) for name,raw in payload.items()},
         'external':{name:digest(raw) for name,raw in external.items()}}
     with install_lock(dest.parent):

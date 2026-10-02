@@ -10,9 +10,10 @@ import zipfile
 ROOT=Path(__file__).resolve().parent.parent
 sys.path.insert(0,str(ROOT))
 from install import PACKAGE_FILES
+from accented import __version__
 
 HEADER='''#!/bin/bash
-# Accented 0.1.1: user-only installer. Does not apply an accent.
+# Accented @VERSION@: user-only installer. Does not apply an accent.
 set -euo pipefail
 exec /usr/bin/python3 - "$0" "$@" <<'ACCENTED_BOOTSTRAP'
 import base64, hashlib, io, os, pathlib, subprocess, sys, tempfile, zipfile
@@ -47,8 +48,8 @@ def build(destination):
             info.external_attr=0o100644<<16
             z.writestr(info,(ROOT/name).read_bytes())
     payload=output.getvalue()
-    text=HEADER.replace('@SHA@',hashlib.sha256(payload).hexdigest())+base64.encodebytes(payload).decode()
+    text=(HEADER.replace('@VERSION@',__version__).replace('@SHA@',hashlib.sha256(payload).hexdigest())+base64.encodebytes(payload).decode())
     path=Path(destination);path.write_text(text);path.chmod(0o755)
     print(path,hashlib.sha256(path.read_bytes()).hexdigest())
 
-if __name__=='__main__':build(sys.argv[1] if len(sys.argv)>1 else ROOT.parent/'Accented-0.1.1.run')
+if __name__=='__main__':build(sys.argv[1] if len(sys.argv)>1 else ROOT.parent/f'Accented-{__version__}.run')

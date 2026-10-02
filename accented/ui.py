@@ -19,12 +19,17 @@ ROOT = Path(__file__).resolve().parent.parent
 RELEASES_URL = "https://github.com/lrnolivia/Accented/releases/latest"
 
 CSS = """
-.accented-header {
-    background-color: @headerbar_bg_color;
-    color: @headerbar_fg_color;
-    box-shadow: inset 0 -1px alpha(currentColor, 0.08);
+.accented-header, .accented-hero-surface {
+    background-color: @view_bg_color;
+    color: @view_fg_color;
+    box-shadow: none;
+    border: none;
 }
-.accented-content .main-panel { padding: 24px; }
+.accented-controls-surface {
+    background-color: @window_bg_color;
+    color: @window_fg_color;
+}
+.accented-content .main-panel { padding: 0; }
 .accented-hero-description { opacity: 0.72; }
 .accented-content .color-swatch { border-radius: 12px; }
 .accented-content .swatch-button { padding: 8px; }
@@ -134,6 +139,9 @@ class Accented(Adw.Application):
             default_width=560,
             default_height=440,
         )
+        # Resolve the bundled icon even before a user-level install refreshes
+        # the theme cache. The installed desktop entry uses the same app ID.
+        Gtk.IconTheme.get_for_display(Gdk.Display.get_default()).add_search_path(str(ROOT / "assets"))
         self.window.set_icon_name(APP_ID)
         self.window.connect("close-request", self.close_requested)
 
@@ -145,6 +153,7 @@ class Accented(Adw.Application):
 
         self.header = Adw.HeaderBar()
         self.header.add_css_class("accented-header")
+        self.header.add_css_class("flat")
         self.menu_button = Gtk.MenuButton(
             icon_name="open-menu-symbolic",
             tooltip_text="Accented options",
@@ -156,25 +165,23 @@ class Accented(Adw.Application):
         self.header.pack_end(self.menu_button)
         root.append(self.header)
 
-        clamp = Adw.Clamp(
-            maximum_size=620,
-            tightening_threshold=500,
-            vexpand=True,
-        )
-        root.append(clamp)
-
         self.content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.content.add_css_class("accented-content")
-        for edge, value in (("top", 12), ("bottom", 32), ("start", 32), ("end", 32)):
-            getattr(self.content, "set_margin_" + edge)(value)
-        clamp.set_child(self.content)
+        root.append(self.content)
+
+        self.hero_surface = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.hero_surface.add_css_class("accented-hero-surface")
+        self.content.append(self.hero_surface)
+        self.hero_clamp = Adw.Clamp(maximum_size=620, tightening_threshold=500)
+        self.hero_surface.append(self.hero_clamp)
 
         self.hero = Gtk.Box(
             orientation=Gtk.Orientation.HORIZONTAL,
             spacing=20,
             valign=Gtk.Align.CENTER,
         )
-        self.hero.set_margin_bottom(24)
+        for edge in ("top", "bottom", "start", "end"):
+            getattr(self.hero, "set_margin_" + edge)(24)
         image_path = ROOT / "assets" / (APP_ID + ".png")
         self.hero_icon = (
             Gtk.Image.new_from_file(str(image_path))
@@ -202,12 +209,19 @@ class Accented(Adw.Application):
         hero_description.set_xalign(0)
         self.hero_text.append(hero_description)
         self.hero.append(self.hero_text)
-        self.content.append(self.hero)
+        self.hero_clamp.set_child(self.hero)
+
+        self.controls_surface = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, vexpand=True)
+        self.controls_surface.add_css_class("accented-controls-surface")
+        self.content.append(self.controls_surface)
+        controls_clamp = Adw.Clamp(maximum_size=620, tightening_threshold=500)
+        self.controls_surface.append(controls_clamp)
 
         self.panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
-        self.panel.add_css_class("card")
+        for edge in ("top", "bottom", "start", "end"):
+            getattr(self.panel, "set_margin_" + edge)(24)
         self.panel.add_css_class("main-panel")
-        self.content.append(self.panel)
+        controls_clamp.set_child(self.panel)
 
         selected = Gtk.Box(spacing=16)
         self.swatch = Gtk.Box(width_request=56, height_request=56, valign=Gtk.Align.CENTER)

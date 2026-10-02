@@ -33,13 +33,16 @@ app=Accented()
 assert app.register(None)
 app.activate();tick(.6)
 assert app.window.get_visible()
-assert app.content.get_margin_start()==32
-assert app.content.get_margin_end()==32
-assert app.hero.get_margin_bottom()==24
+for widget in (app.hero, app.panel):
+    for edge in ('top','bottom','start','end'):
+        assert getattr(widget,'get_margin_'+edge)()==24
+assert app.hero_surface.has_css_class('accented-hero-surface')
+assert app.controls_surface.has_css_class('accented-controls-surface')
+assert Gtk.IconTheme.get_for_display(app.window.get_display()).has_icon('com.loew.accented')
 assert app.hero.get_orientation()==Gtk.Orientation.HORIZONTAL
 assert app.hero_icon.get_pixel_size()==96
 assert app.header.has_css_class('accented-header')
-assert not app.header.has_css_class('flat')
+assert app.header.has_css_class('flat')
 assert app.entry.get_text()=='#3584E4'
 assert app.apply_button.get_sensitive()
 assert not app.restore_action.get_enabled()
@@ -82,6 +85,7 @@ for window in Gtk.Window.get_toplevels():
 tick(.3)
 print('NATIVE_UI_PASS',flush=True)
 if '--capture' in sys.argv:
+    app.window.set_default_size(560,440);tick(.5)
     print('CAPTURE_READY',flush=True)
     tick(15)
 app.window.close();tick()

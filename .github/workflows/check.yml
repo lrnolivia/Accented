@@ -1,11 +1,15 @@
 name: Accented checks
+
 on:
   push:
-    branches: [accented/initial-shell]
+    branches: [main]
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
+
 permissions:
   contents: read
+
 jobs:
   native:
     runs-on: ubuntu-24.04
@@ -44,11 +48,36 @@ jobs:
             wait "$pid"
           '
           cat evidence/native.log
-      - name: Build installer
-        run: python3 tools/build_installer.py evidence/Accented-0.1.1.run
+      - name: Build installer evidence
+        run: |
+          VERSION=$(python3 -c 'from accented import __version__; print(__version__)')
+          python3 tools/build_installer.py "evidence/Accented-${VERSION}.run"
+          sha256sum "evidence/Accented-${VERSION}.run" > evidence/SHA256SUMS
       - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: Accented-evidence
           path: evidence/
           retention-days: 7
+
+  release:
+    needs: native
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Build release installer
+        run: |
+          VERSION=$(python3 -c 'from accented import __version__; print(__version__)')
+          python3 tools/build_installer.py "Accented-${VERSION}.run"
+          sha256sum "Accented-${VERSION}.run" > SHA256SUMS
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(python3 -c 'from accented import __version__; print(__version__)')
+          gh release create "${GITHUB_REF_NAME}"             "Accented-${VERSION}.run" SHA256SUMS             --title "Accented ${VERSION}"             --generate-notes

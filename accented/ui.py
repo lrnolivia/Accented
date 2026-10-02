@@ -11,7 +11,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
 from . import __version__
-from .core import AccentStore, PRESETS, normalize_hex, foreground, rgb
+from .core import AccentStore, PRESETS, normalize_hex, nearest_preset
 from .desktop import GnomeSettings, PixelPicker
 
 APP_ID = "com.loew.accented"
@@ -25,6 +25,9 @@ CSS = """
 .accented-content .small-swatch { border-radius: 6px; }
 .accented-content .picker-actions > flowboxchild { padding: 0; }
 .accented-content .recent-colors > flowboxchild { padding: 0; }
+.accented-scroll { border: none; box-shadow: none; }
+.accented-scroll undershoot,
+.accented-scroll overshoot { background: transparent; box-shadow: none; }
 """
 
 
@@ -35,6 +38,12 @@ def label(text, *classes, center=False):
     for name in classes:
         widget.add_css_class(name)
     return widget
+
+
+def menu_item(text, action, icon):
+    item = Gio.MenuItem.new(text, action)
+    item.set_icon(Gio.ThemedIcon.new(icon))
+    return item
 
 
 def button(text, callback, *, icon=None):
@@ -120,7 +129,7 @@ class Accented(Adw.Application):
             application=self,
             title="Accented",
             default_width=560,
-            default_height=480,
+            default_height=440,
         )
         self.window.set_icon_name(APP_ID)
         self.window.connect("close-request", self.close_requested)
@@ -145,6 +154,7 @@ class Accented(Adw.Application):
         root.append(header)
 
         self.scroll = Gtk.ScrolledWindow(vexpand=True)
+        self.scroll.add_css_class("accented-scroll")
         self.scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         root.append(self.scroll)
 
@@ -251,17 +261,6 @@ class Accented(Adw.Application):
         self.apply_button.set_hexpand(True)
         self.panel.append(self.apply_button)
 
-        status_row = Gtk.Box(spacing=8, halign=Gtk.Align.CENTER)
-        status_row.set_margin_top(12)
-        self.spinner = Gtk.Spinner()
-        self.spinner.set_visible(False)
-        status_row.append(self.spinner)
-        self.status = label("", center=True)
-        self.status.set_hexpand(True)
-        self.status.set_selectable(True)
-        status_row.append(self.status)
-        self.content.append(status_row)
-
         self.swatch_provider = Gtk.CssProvider()
         self.add_css(CSS)
         Gtk.StyleContext.add_provider_for_display(
@@ -278,32 +277,33 @@ class Accented(Adw.Application):
         self.update_swatch()
         self.update_controls()
 
-        initial = (
-            self.issue
-            or (
-                "An interrupted change needs Restore from the menu."
-                if self.store.journal.exists()
-                else "Choose a color, then Apply."
-            )
-        )
-        self.message(initial, error=bool(self.issue))
         self.window.present()
+        if self.issue:
+            self.message(self.issue, error=True)
+        elif self.store.journal.exists():
+            self.message("An interrupted change needs Restore from the menu.", error=True)
 
     def build_menu(self):
         menu = Gio.Menu()
 
         color_section = Gio.Menu()
-        color_section.append("Match GNOME Desktop", "app.match-desktop")
-        color_section.append("Restore Original Accent", "app.restore")
+        color_section.append_item(menu_item(
+            "Match GNOME Desktop", "app.match-desktop",
+            "preferences-desktop-appearance-symbolic"))
+        color_section.append_item(menu_item(
+            "Restore Original Accent", "app.restore", "edit-undo-symbolic"))
         menu.append_section(None, color_section)
 
         update_section = Gio.Menu()
-        update_section.append("Check for Updates…", "app.check-updates")
+        update_section.append_item(menu_item(
+            "Check for Updates…", "app.check-updates", "view-refresh-symbolic"))
         menu.append_section(None, update_section)
 
         help_section = Gio.Menu()
-        help_section.append("What Changes?", "app.what-changes")
-        help_section.append("About Accented", "app.about")
+        help_section.append_item(menu_item(
+            "What Changes?", "app.what-changes", "dialog-information-symbolic"))
+        help_section.append_item(menu_item(
+            "About Accented", "app.about", "help-about-symbolic"))
         menu.append_section(None, help_section)
         return menu
 
@@ -386,7 +386,7 @@ class Accented(Adw.Application):
 
     def set_color(self, color):
         self.entry.set_text(normalize_hex(color))
-        self.message("Ready to apply " + self.color + ".")
+        self.message("Selected " + self.color + ".", timeout=2)
 
     def update_swatch(self):
         self.swatch_provider.load_from_data(
@@ -411,7 +411,8 @@ class Accented(Adw.Application):
 
     def theme_changed(self, *_):
         self.message(
-            "Appearance changed. Reapply to refresh older GTK apps’ accent-text contrast."
+            "Appearance changed. Reapply to refresh older GTK apps’ accent-text contrast.",
+            timeout=5,
         )
 
     def update_controls(self):
@@ -433,14 +434,14 @@ class Accented(Adw.Application):
         )
         self.check_update_action.set_enabled(not self.busy)
 
-    def message(self, text, error=False):
-        self.status.set_text(text)
+    def message(self, text, error=False, timeout=4):
+        if not text:
+            return
+        toast = Adw.Toast.new(text)
+        toast.set_timeout(timeout)
         if error:
-            self.status.add_css_class("error")
-        else:
-            self.status.remove_css_class("error")
-        if hasattr(self.status, "announce"):
-            self.status.announce(text, Gtk.AccessibleAnnouncementPriority.MEDIUM)
+            toast.set_priority(Adw.ToastPriority.HIGH)
+        self.toast_overlay.add_toast(toast)
 
     def copy_color(self, *_):
         if self.valid:
@@ -493,9 +494,7 @@ class Accented(Adw.Application):
         if self.busy:
             return
         self.busy = True
-        self.spinner.set_visible(True)
-        self.spinner.start()
-        self.message(description)
+        self.message(description, timeout=2)
         self.update_controls()
 
         def worker():
@@ -511,8 +510,6 @@ class Accented(Adw.Application):
 
     def change_done(self, text, error, state):
         self.busy = False
-        self.spinner.stop()
-        self.spinner.set_visible(False)
         if state is not None:
             self.saved_state = state
             self.issue = None
@@ -544,6 +541,12 @@ class Accented(Adw.Application):
                 dark=dark,
                 match_shell=match,
             )
+            if match:
+                preset = nearest_preset(color).title()
+                return (
+                    f"Applied {color}. GNOME desktop matched live to {preset}; "
+                    "reopen apps for the exact GTK color."
+                )
             return f"Applied {color}. Reopen apps to see the change."
 
         self.run_change(operation, "Backing up and applying…")
@@ -593,6 +596,6 @@ class Accented(Adw.Application):
 
     def close_requested(self, *_):
         if self.busy:
-            self.message("A change is in progress. Accented will stay open until it finishes.")
+            self.message("A change is in progress. Accented will stay open until it finishes.", error=True)
             return True
         return False

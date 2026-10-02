@@ -45,7 +45,7 @@ jobs:
           '
           cat evidence/native.log
       - name: Build installer
-        run: python3 tools/build_installer.py evidence/Accented-0.1.0.run
+        run: python3 tools/build_installer.py evidence/Accented-0.1.1.run
       - uses: actions/upload-artifact@v7
         if: always()
         with:

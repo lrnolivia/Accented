@@ -184,8 +184,10 @@ class Accented(Adw.Application):
 
         options = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         options.set_margin_top(20)
-        self.match = Gtk.CheckButton(label="Match desktop to nearest GNOME color")
-        self.match.get_child().set_wrap(True)
+        self.match = Gtk.CheckButton()
+        self.match.set_child(label("Match desktop to nearest GNOME color"))
+        self.match.update_property([Gtk.AccessibleProperty.LABEL],
+                                   ["Match desktop to nearest GNOME color"])
         self.match.set_active(self.saved_state.get("shell_applied") is not None)
         self.match.set_sensitive(self.settings.available)
         self.match.connect("toggled", self.option_changed)
@@ -364,7 +366,7 @@ class Accented(Adw.Application):
         else:
             self.status.remove_css_class("error")
         if hasattr(self.status, "announce"):
-            self.status.announce(text, Gtk.AccessibleAnnouncementPriority.POLITE)
+            self.status.announce(text, Gtk.AccessibleAnnouncementPriority.MEDIUM)
 
     def copy_color(self, *_):
         if self.valid:

@@ -41,7 +41,7 @@ assert app.entry.get_text()=='#3584E4'
 assert app.apply_button.get_sensitive()
 assert not app.restore_action.get_enabled()
 assert app.menu_button.get_menu_model() is not None
-assert app.scroll.has_css_class('accented-scroll')
+assert not hasattr(app,'scroll')
 assert not hasattr(app,'status')
 assert not hasattr(app,'spinner')
 assert not app.store.config.exists()

@@ -1,0 +1,11 @@
+Accented 0.1.0
+Copyright 2026 loew.fi contributors
+
+Accented is derived from the GameBridge Lite UI foundation by Lauren Olivia.
+Source: lrnolivia/GameBridge, commit 3606f651319891a094a1e80625ac36591be79f4c.
+Its centered heading, compact single-panel structure and native controls remain
+our visual reference. GameBridge itself has not been modified.
+
+Licensed under the GNU General Public License version 3. See LICENSE.
+The original source repository includes that license at docs/LICENSE.
+The Accented app icon was supplied in this conversation and is included as-is.

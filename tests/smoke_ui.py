@@ -13,7 +13,7 @@ os.environ['GSETTINGS_BACKEND']='memory'
 sys.path.insert(0,str(Path(__file__).resolve().parent.parent))
 import gi
 gi.require_version('Gtk','4.0');gi.require_version('Adw','1')
-from gi.repository import Adw, Gtk, GLib
+from gi.repository import Adw, Gtk, GLib, Graphene
 from accented.ui import Accented
 
 def tick(seconds=.2):
@@ -85,7 +85,15 @@ for window in Gtk.Window.get_toplevels():
 tick(.3)
 print('NATIVE_UI_PASS',flush=True)
 if '--capture' in sys.argv:
-    app.window.set_default_size(560,440);tick(.5)
+    app.window.set_default_size(560,440);tick(10)
+    width,height=app.window.get_width(),app.window.get_height()
+    paint=Gtk.WidgetPaintable.new(app.window);snapshot=Gtk.Snapshot()
+    paint.snapshot(snapshot,width,height);node=snapshot.to_node()
+    assert node is not None
+    rect=Graphene.Rect();rect.init(0,0,width,height)
+    texture=app.window.get_native().get_renderer().render_texture(node,rect)
+    Path('evidence').mkdir(exist_ok=True)
+    assert texture.save_to_png('evidence/Accented-dark.png')
     print('CAPTURE_READY',flush=True)
     tick(15)
 app.window.close();tick()

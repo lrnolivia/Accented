@@ -44,7 +44,7 @@ jobs:
               sleep 1
             done
             grep -q CAPTURE_READY evidence/native.log
-            import -window root evidence/Accented-dark.png
+            test -s evidence/Accented-dark.png
             wait "$pid"
           '
           cat evidence/native.log

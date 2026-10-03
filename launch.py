@@ -12,6 +12,9 @@ def main():
         from accented import __version__
         print("Accented " + __version__)
         return 0
+    if "--uninstall" in sys.argv and (Path(__file__).resolve().parent / '.package-managed').exists():
+        print('This installation is managed by your package manager. Use --restore first if you want to restore your previous accent, then remove the accented package with your system package manager. User backups are retained.')
+        return 0
     if "--help" in sys.argv:
         print("Accented: choose a color, preview, then Apply.\n"
               "--version   Print version\n--doctor    Check desktop dependencies\n"

@@ -1,3 +1,11 @@
+## Native Linux packages
+
+Download `.deb` (Debian 13 / Ubuntu with GTK 4.10+) or `.rpm` (Fedora-family GNOME) from [Releases](https://github.com/lrnolivia/Accented/releases/latest). Install with your graphical package manager or `sudo apt install ./accented_*.deb` / `sudo dnf install ./accented-*.rpm`.
+
+The package manager owns application files under `/usr`; your accent preferences and safety backups stay in your home directory. Run `accented --restore` before removing the package if you want the previous accent restored. Removing the package does not silently change desktop preferences or delete backups.
+
+Bazzite and other Atomic desktops: do not use `dnf install` on the host. An RPM may be layered with the distribution's supported rpm-ostree workflow, requiring a new deployment/reboot. This path has not yet been validated on a physical Bazzite system. A sandboxed Flatpak is not offered because this utility intentionally manages host GNOME settings and GTK configuration. Older `.run` releases are retained for rollback, but native packages are the primary downloads.
+
 <p align="center">
   <img src="assets/com.loew.accented.png" width="96" alt="Accented icon">
 </p>

@@ -60,8 +60,56 @@ jobs:
           path: evidence/
           retention-days: 7
 
+  packages:
+    strategy:
+      matrix:
+        include:
+          - format: deb
+            image: debian:trixie-slim
+          - format: rpm
+            image: fedora:44
+    runs-on: ubuntu-24.04
+    container: ${{ matrix.image }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Package dependencies
+        run: |
+          if [ "${{ matrix.format }}" = deb ]; then
+            apt-get update -qq
+            apt-get install -y python3 dpkg-dev python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 gsettings-desktop-schemas desktop-file-utils
+          else
+            dnf install -y python3 rpm-build python3-gobject gtk4 libadwaita gsettings-desktop-schemas desktop-file-utils
+          fi
+      - name: Build and validate package lifecycle
+        run: |
+          python3 tools/build_packages.py "${{ matrix.format }}"
+          if [ "${{ matrix.format }}" = deb ]; then
+            dpkg-deb --info dist/*.deb
+            dpkg-deb --contents dist/*.deb
+            dpkg -i dist/*.deb
+          else
+            rpm -qip dist/*.rpm
+            rpm -qlp dist/*.rpm
+            rpm -i dist/*.rpm
+          fi
+          accented --version
+          desktop-file-validate /usr/share/applications/com.loew.accented.desktop
+          test -f /usr/share/icons/hicolor/512x512/apps/com.loew.accented.png
+          accented --uninstall | grep 'package manager'
+          mkdir -p /root/.config/accented
+          printf 'retained' > /root/.config/accented/package-test
+          if [ "${{ matrix.format }}" = deb ]; then dpkg -r accented; else rpm -e accented; fi
+          test ! -e /usr/bin/accented
+          test "$(cat /root/.config/accented/package-test)" = retained
+      - uses: actions/upload-artifact@v7
+        with:
+          name: accented-${{ matrix.format }}
+          path: dist/*
+
   release:
-    needs: native
+    needs: [native, packages]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     permissions:
@@ -70,14 +118,16 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - name: Build release installer
-        run: |
-          VERSION=$(python3 -c 'from accented import __version__; print(__version__)')
-          python3 tools/build_installer.py "Accented-${VERSION}.run"
-          sha256sum "Accented-${VERSION}.run" > SHA256SUMS
-      - name: Publish GitHub release
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: accented-*
+          merge-multiple: true
+          path: release
+      - name: Publish native packages
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION=$(python3 -c 'from accented import __version__; print(__version__)')
-          gh release create "${GITHUB_REF_NAME}"             "Accented-${VERSION}.run" SHA256SUMS             --title "Accented ${VERSION}"             --generate-notes
+          cd release
+          sha256sum *.deb *.rpm > SHA256SUMS
+          gh release create "${GITHUB_REF_NAME}" *.deb *.rpm SHA256SUMS --title "Accented ${VERSION}" --generate-notes

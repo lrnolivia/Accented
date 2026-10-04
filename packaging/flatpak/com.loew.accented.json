@@ -1,0 +1,32 @@
+{
+  "app-id": "com.loew.accented",
+  "runtime": "org.gnome.Platform",
+  "runtime-version": "50",
+  "sdk": "org.gnome.Sdk",
+  "command": "accented",
+  "finish-args": [
+    "--share=ipc",
+    "--socket=wayland",
+    "--socket=fallback-x11",
+    "--device=dri",
+    "--filesystem=xdg-config/gtk-3.0:create",
+    "--filesystem=xdg-config/gtk-4.0:create",
+    "--filesystem=~/.local/state/accented:create"
+  ],
+  "modules": [{
+    "name": "accented",
+    "buildsystem": "simple",
+    "build-commands": [
+      "python3 -m unittest discover -s tests -v",
+      "install -d /app/share/accented /app/bin /app/share/applications /app/share/metainfo /app/share/icons/hicolor/512x512/apps",
+      "cp -r accented assets /app/share/accented/",
+      "install -m644 launch.py install.py README.md LICENSE NOTICE PRODUCT.md DESIGN.md /app/share/accented/",
+      "touch /app/share/accented/.package-managed",
+      "install -m755 packaging/flatpak/accented /app/bin/accented",
+      "install -m644 packaging/flatpak/com.loew.accented.desktop /app/share/applications/",
+      "install -m644 packaging/flatpak/com.loew.accented.metainfo.xml /app/share/metainfo/",
+      "install -m644 assets/com.loew.accented.png /app/share/icons/hicolor/512x512/apps/"
+    ],
+    "sources": [{"type":"dir","path":"../..","skip":[".git",".flatpak-builder","build","dist","flatpak-repo"]}]
+  }]
+}

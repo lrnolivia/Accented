@@ -5,10 +5,14 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gio, GLib
 from .core import PRESETS, from_rgb
+from .environment import is_flatpak
 
 
 class GnomeSettings:
     def __init__(self):
+        if is_flatpak():
+            self.interface=None;self.available=False
+            return
         source = Gio.SettingsSchemaSource.get_default()
         schema = source.lookup("org.gnome.desktop.interface", True) if source else None
         self.interface = Gio.Settings.new_full(schema, None, None) if schema else None
@@ -16,6 +20,10 @@ class GnomeSettings:
 
     @property
     def dark(self):
+        if is_flatpak():
+            gi.require_version('Adw','1')
+            from gi.repository import Adw
+            return Adw.StyleManager.get_default().get_dark()
         return bool(self.interface and self.interface.get_string("color-scheme") == "prefer-dark")
 
     def snapshot(self):

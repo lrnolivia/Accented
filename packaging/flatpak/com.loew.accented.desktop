@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Accented
+Comment=Pick a pixel. Make it your accent.
+Exec=accented
+Icon=com.loew.accented
+Terminal=false
+Categories=Settings;DesktopSettings;
+StartupNotify=true

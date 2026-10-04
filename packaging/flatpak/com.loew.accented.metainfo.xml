@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.loew.accented</id>
+  <name>Accented</name>
+  <summary>Choose an exact accent for supported GTK applications</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+  <developer id="fi.loew"><name>loew.fi</name></developer>
+  <description><p>Pick a screen pixel or enter a color, then apply it to GTK user styles. Existing CSS is preserved, with guarded backups and restore.</p><p>This sandboxed edition writes only GTK 3 and GTK 4 configuration directories and Accented recovery state. Matching the native GNOME Shell preset is unavailable in this edition. Qt, Electron and other sandboxes may not follow GTK user styles.</p></description>
+  <launchable type="desktop-id">com.loew.accented.desktop</launchable>
+  <url type="homepage">https://github.com/lrnolivia/Accented</url>
+  <url type="bugtracker">https://github.com/lrnolivia/Accented/issues</url>
+  <content_rating type="oars-1.1"/>
+  <releases><release version="0.2.5" date="2026-10-03"/></releases>
+  <supports><control>pointing</control><control>keyboard</control></supports>
+</component>

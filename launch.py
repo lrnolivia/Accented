@@ -36,13 +36,15 @@ def main():
     from accented.desktop import GnomeSettings
     from accented.core import AccentStore
     settings = GnomeSettings()
-    store = AccentStore(Path(GLib.get_user_config_dir()), Path(GLib.get_user_state_dir()), settings)
+    from accented.environment import storage_paths, is_flatpak
+    config,state=storage_paths(GLib.get_user_config_dir(),GLib.get_user_state_dir())
+    store = AccentStore(config,state,settings)
     if "--doctor" in sys.argv:
         print(json.dumps({"app": "Accented", "gtk": f"4.{Gtk.get_minor_version()}",
             "adwaita": f"{Adw.get_major_version()}.{Adw.get_minor_version()}",
             "session": os.environ.get("XDG_SESSION_TYPE", "unknown"),
             "desktop": os.environ.get("XDG_CURRENT_DESKTOP", "unknown"),
-            "native_accent_available": settings.available,
+            "native_accent_available": settings.available, "flatpak": is_flatpak(),
             "gtk_config": str(store.config), "backups": str(store.root / "backups"),
             "interrupted_change": store.journal.exists()}, indent=2))
         return 0

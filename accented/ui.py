@@ -13,6 +13,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 from . import __version__
 from .core import AccentStore, PRESETS, normalize_hex, nearest_preset
 from .desktop import GnomeSettings, PixelPicker
+from .environment import is_flatpak, storage_paths
 
 APP_ID = "com.loew.accented"
 ROOT = Path(__file__).resolve().parent.parent
@@ -74,11 +75,8 @@ class Accented(Adw.Application):
         super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.DEFAULT_FLAGS)
         self.window = None
         self.settings = GnomeSettings()
-        self.store = AccentStore(
-            Path(GLib.get_user_config_dir()),
-            Path(GLib.get_user_state_dir()),
-            self.settings,
-        )
+        config,state=storage_paths(GLib.get_user_config_dir(),GLib.get_user_state_dir())
+        self.store = AccentStore(config,state,self.settings)
         self.color = PRESETS["blue"]
         self.valid = True
         self.busy = False
@@ -595,12 +593,12 @@ class Accented(Adw.Application):
 
     def check_updates(self, *_):
         try:
-            if not Gio.AppInfo.launch_default_for_uri(RELEASES_URL, None):
+            if not Gio.AppInfo.launch_default_for_uri("appstream://com.loew.accented" if is_flatpak() else RELEASES_URL, None):
                 raise RuntimeError("The desktop could not open GitHub Releases.")
         except Exception as exc:
             self.toast("Could not open updates: " + str(exc), 6)
         else:
-            self.toast("Opened Accented Releases.")
+            self.toast("Opened your software manager. Flatpak owns updates." if is_flatpak() else "Opened Accented Releases.")
 
     def show_what_changes(self, *_):
         dialog = Adw.AlertDialog(
@@ -611,7 +609,8 @@ class Accented(Adw.Application):
                 "“Match GNOME Desktop” uses GNOME’s nearest built-in accent, so it is an "
                 "approximation rather than your exact hex color.\n\n"
                 "Flatpak, Qt, Electron, and custom-drawn apps may not follow GTK user CSS. "
-                "Reopen affected apps after Apply or Restore."
+                "Reopen affected apps after Apply or Restore. "
+                + ("This Flatpak grants access only to the two GTK configuration directories and Accented recovery state. Native GNOME desktop matching is unavailable in this sandbox." if is_flatpak() else "")
             ),
         )
         dialog.add_response("close", "Close")

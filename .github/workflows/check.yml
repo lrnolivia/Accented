@@ -2,7 +2,7 @@ name: Accented checks
 
 on:
   push:
-    branches: [main]
+    branches: [main, accented/flatpak]
     tags: ['v*']
   pull_request:
   workflow_dispatch:

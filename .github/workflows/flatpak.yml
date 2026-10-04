@@ -1,0 +1,43 @@
+name: Accented Flatpak candidate
+on:
+  push:
+    branches: [accented/flatpak]
+  pull_request:
+    paths: ['packaging/flatpak/**', 'accented/**', 'launch.py', 'tests/**', '.github/workflows/flatpak.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  flatpak:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install distribution Flatpak tooling
+        run: sudo apt-get update -qq && sudo apt-get install -y flatpak flatpak-builder
+      - name: Build inside the standard sandbox
+        run: |
+          flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+          flatpak-builder --user --install-deps-from=flathub --repo=flatpak-repo --force-clean build/flatpak packaging/flatpak/com.loew.accented.json
+      - name: Verify package identity and bounded permissions
+        run: |
+          grep -q 'name=com.loew.accented' build/flatpak/metadata
+          test -f build/flatpak/files/share/applications/com.loew.accented.desktop
+          test -f build/flatpak/files/share/icons/hicolor/512x512/apps/com.loew.accented.png
+          test -f build/flatpak/files/share/accented/.package-managed
+          flatpak-builder --run build/flatpak packaging/flatpak/com.loew.accented.json accented --version
+          flatpak-builder --run build/flatpak packaging/flatpak/com.loew.accented.json accented --doctor
+      - name: Create installable review bundle
+        run: |
+          mkdir -p dist
+          flatpak build-bundle --runtime-repo=https://flathub.org/repo/flathub.flatpakrepo flatpak-repo dist/Accented-review.flatpak com.loew.accented
+          sha256sum dist/Accented-review.flatpak > dist/SHA256SUMS
+          cp build/flatpak/metadata dist/flatpak-metadata
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: accented-flatpak-review
+          path: dist/
+          retention-days: 7

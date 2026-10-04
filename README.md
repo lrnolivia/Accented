@@ -4,7 +4,7 @@ Download `.deb` (Debian 13 / Ubuntu with GTK 4.10+) or `.rpm` (Fedora-family GNO
 
 The package manager owns application files under `/usr`; your accent preferences and safety backups stay in your home directory. Run `accented --restore` before removing the package if you want the previous accent restored. Removing the package does not silently change desktop preferences or delete backups.
 
-Bazzite and other Atomic desktops: do not use `dnf install` on the host. An RPM may be layered with the distribution's supported rpm-ostree workflow, requiring a new deployment/reboot. This path has not yet been validated on a physical Bazzite system. A sandboxed Flatpak is not offered because this utility intentionally manages host GNOME settings and GTK configuration. Older `.run` releases are retained for rollback, but native packages are the primary downloads.
+Bazzite and other Atomic desktops: do not use `dnf install` on the host. An RPM may be layered with the distribution's supported rpm-ostree workflow, requiring a new deployment/reboot. This path has not yet been validated on a physical Bazzite system. A sandboxed Flatpak candidate now supports the GTK accent flow with narrowly scoped host configuration access; see below. Older `.run` releases are retained for rollback, but native packages are the primary downloads.
 
 <p align="center">
   <img src="assets/com.loew.accented.png" width="96" alt="Accented icon">
@@ -31,22 +31,24 @@ It was built for Bazzite GNOME, but should work on modern GNOME desktops with GT
 
 GNOME Shell only exposes its built-in accent presets. Accented therefore keeps your **exact** selected color for compatible GTK apps and can optionally use the nearest GNOME preset for the desktop shell.
 
-## Install
+## Flatpak candidate
 
-Open the **Releases** page and download the newest `Accented-<version>.run` file:
+The review build uses GNOME Platform 50. Download the exact tested bundle from the Flatpak workflow artifact, verify its SHA256SUMS, then install with `flatpak install --user ./Accented-review.flatpak`. This is a review artifact, not a published Flathub listing or an automatic update feed.
 
-https://github.com/lrnolivia/Accented/releases/latest
+The sandbox grants access only to `gtk-3.0`, `gtk-4.0`, and Accented's recovery-state directory. It has no network permission, unrestricted home access, host-command execution, or dconf write permission. Screen picking still uses the consent-mediated desktop portal. Native “Match GNOME Desktop” is unavailable in the Flatpak; compatible GTK applications receive the exact selected color.
 
-Then run it as your normal desktop user, **without sudo**:
+Native and Flatpak editions share ownership records and a lock, so neither silently overwrites the other's accent block. If the native edition previously matched GNOME Shell, use its Restore action before switching to Flatpak. The sandbox fails closed rather than bypassing that recovery requirement. Keep backups when uninstalling; restore the accent first if desired.
 
-```bash
-chmod +x ~/Downloads/Accented-*.run
-~/Downloads/Accented-*.run
+Flatpak owns application updates and removal. “Check for Updates” opens the software manager in this edition. A manually downloaded bundle has no automatic feed unless a suitable repository is separately configured.
+
+To build without weakening the sandbox:
+
+```sh
+flatpak-builder --user --install-deps-from=flathub --repo=flatpak-repo --force-clean build/flatpak packaging/flatpak/com.loew.accented.json
+flatpak build-bundle --runtime-repo=https://flathub.org/repo/flathub.flatpakrepo flatpak-repo Accented-review.flatpak com.loew.accented
 ```
 
-The installer writes only to your user directories under `~/.local` and does not layer packages onto Bazzite.
-
-Each release also includes `SHA256SUMS` if you want to verify the download first.
+Legacy `.run` installers remain available only for rollback. Prefer native packages or a verified Flatpak candidate.
 
 ## Usage
 

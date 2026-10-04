@@ -16,7 +16,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install distribution Flatpak tooling
-        run: sudo apt-get update -qq && sudo apt-get install -y flatpak flatpak-builder
+        run: sudo apt-get update -qq && sudo apt-get install -y flatpak flatpak-builder xvfb xauth dbus-x11
       - name: Build inside the standard sandbox
         run: |
           flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
@@ -29,6 +29,32 @@ jobs:
           test -f build/flatpak/files/share/accented/.package-managed
           flatpak-builder --run build/flatpak packaging/flatpak/com.loew.accented.json accented --version
           flatpak-builder --run build/flatpak packaging/flatpak/com.loew.accented.json accented --doctor
+      - name: Launch the built sandbox without modifying host accents
+        env:
+          GSK_RENDERER: cairo
+          NO_AT_BRIDGE: "1"
+        run: |
+          dbus-run-session -- xvfb-run -a flatpak-builder --run build/flatpak packaging/flatpak/com.loew.accented.json python3 -c '
+          import sys,time
+          sys.path.insert(0,"/app/share/accented")
+          import gi
+          gi.require_version("Gtk","4.0");gi.require_version("Adw","1")
+          from gi.repository import GLib
+          from accented.environment import is_flatpak
+          from accented.ui import Accented
+          assert is_flatpak(), "Test must run inside the Flatpak sandbox"
+          app=Accented();assert app.register(None);app.activate()
+          context=GLib.MainContext.default();deadline=time.monotonic()+2
+          while time.monotonic()<deadline:
+              while context.pending():context.iteration(False)
+              time.sleep(.01)
+          assert app.window.get_visible()
+          assert app.settings.available is False
+          assert not app.match_action.get_enabled()
+          assert not app.issue, app.issue
+          print("FLATPAK_WINDOW_VISIBLE; SHELL_WRITE_DISABLED; NO_ACCENT_WRITE")
+          app.quit()
+          '
       - name: Create installable review bundle
         run: |
           mkdir -p dist

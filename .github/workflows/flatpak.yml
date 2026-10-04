@@ -29,12 +29,21 @@ jobs:
           test -f build/flatpak/files/share/accented/.package-managed
           flatpak-builder --run build/flatpak packaging/flatpak/com.loew.accented.json accented --version
           flatpak-builder --run build/flatpak packaging/flatpak/com.loew.accented.json accented --doctor
-      - name: Launch the built sandbox without modifying host accents
+      - name: Create installable review bundle
+        run: |
+          mkdir -p dist
+          flatpak build-bundle --runtime-repo=https://flathub.org/repo/flathub.flatpakrepo flatpak-repo dist/Accented-review.flatpak com.loew.accented
+          sha256sum dist/Accented-review.flatpak > dist/SHA256SUMS
+          cp build/flatpak/metadata dist/flatpak-metadata
+      - name: Launch the installed runtime without modifying host accents
         env:
           GSK_RENDERER: cairo
           NO_AT_BRIDGE: "1"
         run: |
-          dbus-run-session -- xvfb-run -a flatpak-builder --run build/flatpak packaging/flatpak/com.loew.accented.json python3 -c '
+          flatpak install --user --noninteractive -y dist/Accented-review.flatpak
+          flatpak run --user com.loew.accented --version
+          flatpak run --user com.loew.accented --doctor
+          dbus-run-session -- xvfb-run -a flatpak run --user --command=python3 com.loew.accented -c '
           import sys,time
           sys.path.insert(0,"/app/share/accented")
           import gi
@@ -55,12 +64,6 @@ jobs:
           print("FLATPAK_WINDOW_VISIBLE; SHELL_WRITE_DISABLED; NO_ACCENT_WRITE")
           app.quit()
           '
-      - name: Create installable review bundle
-        run: |
-          mkdir -p dist
-          flatpak build-bundle --runtime-repo=https://flathub.org/repo/flathub.flatpakrepo flatpak-repo dist/Accented-review.flatpak com.loew.accented
-          sha256sum dist/Accented-review.flatpak > dist/SHA256SUMS
-          cp build/flatpak/metadata dist/flatpak-metadata
       - uses: actions/upload-artifact@v4
         if: always()
         with:

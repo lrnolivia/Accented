@@ -14,5 +14,5 @@ class SandboxPathsTests(unittest.TestCase):
             with self.assertRaises(ValueError):storage_paths()
     def test_flatpak_grants_are_narrow_and_have_no_host_execution_or_network(self):
         manifest=json.loads((ROOT/'packaging/flatpak/com.loew.accented.json').read_text());args=manifest['finish-args']
-        self.assertEqual({x for x in args if x.startswith('--filesystem=')},{'--filesystem=xdg-config/gtk-3.0:create','--filesystem=xdg-config/gtk-4.0:create','--filesystem=xdg-state/accented:create'})
+        self.assertEqual({x for x in args if x.startswith('--filesystem=')},{'--filesystem=xdg-config/gtk-3.0:create','--filesystem=xdg-config/gtk-4.0:create','--filesystem=~/.local/state/accented:create'})
         self.assertFalse(any('talk-name' in x or x=='--share=network' or x=='--filesystem=home' for x in args));self.assertEqual(manifest['runtime-version'],'50')

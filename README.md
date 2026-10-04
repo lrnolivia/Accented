@@ -35,7 +35,7 @@ GNOME Shell only exposes its built-in accent presets. Accented therefore keeps y
 
 The review build uses GNOME Platform 50. Download the exact tested bundle from the Flatpak workflow artifact, verify its SHA256SUMS, then install with `flatpak install --user ./Accented-review.flatpak`. This is a review artifact, not a published Flathub listing or an automatic update feed.
 
-The sandbox grants access only to `gtk-3.0`, `gtk-4.0`, and Accented's recovery-state directory. It has no network permission, unrestricted home access, host-command execution, or dconf write permission. Screen picking still uses the consent-mediated desktop portal. Native “Match GNOME Desktop” is unavailable in the Flatpak; compatible GTK applications receive the exact selected color.
+The sandbox grants access only to `gtk-3.0`, `gtk-4.0`, and `~/.local/state/accented`. If you use a custom host XDG state directory, that exact Accented subdirectory needs an explicit Flatpak permission override; the application does not request broad home access or substitute a new ownership record. It has no network permission, unrestricted home access, host-command execution, or dconf write permission. Screen picking still uses the consent-mediated desktop portal. Native “Match GNOME Desktop” is unavailable in the Flatpak; compatible GTK applications receive the exact selected color.
 
 Native and Flatpak editions share ownership records and a lock, so neither silently overwrites the other's accent block. If the native edition previously matched GNOME Shell, use its Restore action before switching to Flatpak. The sandbox fails closed rather than bypassing that recovery requirement. Keep backups when uninstalling; restore the accent first if desired.
 

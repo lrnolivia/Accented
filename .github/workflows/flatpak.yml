@@ -1,9 +1,6 @@
 name: Accented Flatpak candidate
 on:
-  push:
-    branches: [accented/flatpak]
-  pull_request:
-    paths: ['packaging/flatpak/**', 'accented/**', 'launch.py', 'tests/**', '.github/workflows/flatpak.yml']
+  workflow_call:
   workflow_dispatch:
 permissions:
   contents: read

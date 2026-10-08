@@ -10,6 +10,9 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: accented-checks-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name == 'pull_request' && 'pr' || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   native:
     runs-on: ubuntu-24.04
